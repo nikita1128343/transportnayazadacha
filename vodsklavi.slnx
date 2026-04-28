@@ -1,0 +1,7 @@
+<Solution>
+  <Configurations>
+    <Platform Name="x64" />
+    <Platform Name="x86" />
+  </Configurations>
+  <Project Path="vodsklavi/vodsklavi.vcxproj" Id="00eee175-7ce1-45db-b738-0110dd21ad72" />
+</Solution>
