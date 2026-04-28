@@ -1,0 +1,287 @@
+#define NOMINMAX
+#include <iostream>
+#include <vector>
+#include <limits>
+#include <algorithm>
+#include <iomanip>
+#include <windows.h>
+
+using namespace std;
+
+int M, N;
+vector<int> supply;
+vector<int> demand;
+vector<vector<int>> costs;
+
+void printLine(int w = 70) {
+    for (int i = 0; i < w; i++) cout << "-";
+    cout << endl;
+}
+
+void printTitle(const string& text) {
+    cout << "\n  ";
+    printLine(66);
+    cout << "  " << text << endl;
+    cout << "  ";
+    printLine(66);
+}
+
+void inputData() {
+    printTitle("BBOD ДAHHЫX");
+    cout << "  Количество поставщиков: "; cin >> M;
+    cout << "  Количество потребителей: "; cin >> N;
+
+    supply.resize(M); demand.resize(N);
+    costs.assign(M, vector<int>(N));
+
+    cout << "\n  ЗАПАСЫ ПОСТАВЩИКОВ:" << endl;
+    for (int i = 0; i < M; i++) { cout << "  A" << i + 1 << " = "; cin >> supply[i]; }
+
+    cout << "\n  ПОТРЕБНОСТИ ПОТРЕБИТЕЛЕЙ:" << endl;
+    for (int j = 0; j < N; j++) { cout << "  B" << j + 1 << " = "; cin >> demand[j]; }
+
+    cout << "\n  МАТРИЦА СТОИМОСТЕЙ:" << endl;
+    for (int i = 0; i < M; i++) {
+        cout << "  A" << i + 1 << ": ";
+        for (int j = 0; j < N; j++) cin >> costs[i][j];
+    }
+}
+
+void printPlan(const vector<vector<int>>& plan, const string& title) {
+    printTitle(title);
+    int total = 0;
+
+    printf("          ");
+    for (int j = 0; j < N; j++) printf("  B%-2d  ", j + 1);
+    printf("  Запас\n  ");
+    printLine(10 + N * 9);
+
+    for (int i = 0; i < M; i++) {
+        printf("  A%-2d    ", i + 1);
+        for (int j = 0; j < N; j++) {
+            if (plan[i][j] > 0) {
+                printf("%2d(%-2d) ", plan[i][j], costs[i][j]);
+                total += plan[i][j] * costs[i][j];
+            }
+            else printf("   0    ");
+        }
+        printf("  %3d\n", supply[i]);
+    }
+
+    printf("  ");
+    printLine(10 + N * 9);
+    printf("  Потр.   ");
+    for (int j = 0; j < N; j++) printf("  %2d    ", demand[j]);
+    printf("\n\n  Стоимость: %d\n", total);
+}
+
+void makeBalanced() {
+    int sumA = 0, sumB = 0;
+    for (int i = 0; i < M; i++) sumA += supply[i];
+    for (int j = 0; j < N; j++) sumB += demand[j];
+
+    printTitle("ПРОВЕРКА БАЛАНСА");
+    printf("  Запасы: %d, Потребности: %d", sumA, sumB);
+
+    if (sumA == sumB) { printf(" - сбалансирована\n"); return; }
+
+    printf(" - НЕ сбалансирована!\n");
+    if (sumA < sumB) {
+        printf("  +Фиктивный поставщик A%d = %d\n", M + 1, sumB - sumA);
+        supply.push_back(sumB - sumA);
+        costs.push_back(vector<int>(N, 0));
+        M++;
+    }
+    else {
+        printf("  +Фиктивный потребитель B%d = %d\n", N + 1, sumA - sumB);
+        demand.push_back(sumA - sumB);
+        for (int i = 0; i < M; i++) costs[i].push_back(0);
+        N++;
+    }
+}
+
+vector<vector<int>> northwestCorner() {
+    vector<int> s = supply, d = demand;
+    vector<vector<int>> x(M, vector<int>(N, 0));
+    int i = 0, j = 0;
+    while (i < M && j < N) {
+        int v = min(s[i], d[j]);
+        x[i][j] = v; s[i] -= v; d[j] -= v;
+        if (s[i] == 0) i++;
+        if (d[j] == 0) j++;
+    }
+    return x;
+}
+
+vector<vector<int>> minElement() {
+    vector<int> s = supply, d = demand;
+    vector<vector<int>> x(M, vector<int>(N, 0));
+    while (true) {
+        int mc = 999999, mi = -1, mj = -1;
+        for (int i = 0; i < M; i++)
+            for (int j = 0; j < N; j++)
+                if (s[i] > 0 && d[j] > 0 && costs[i][j] < mc)
+                    mc = costs[i][j], mi = i, mj = j;
+        if (mi == -1) break;
+        int v = min(s[mi], d[mj]);
+        x[mi][mj] = v; s[mi] -= v; d[mj] -= v;
+    }
+    return x;
+}
+
+vector<vector<int>> doublePreference() {
+    vector<int> s = supply, d = demand;
+    vector<vector<int>> x(M, vector<int>(N, 0));
+    while (true) {
+        int bs = -1, bi = -1, bj = -1;
+        for (int i = 0; i < M; i++)
+            for (int j = 0; j < N; j++)
+                if (s[i] > 0 && d[j] > 0 && x[i][j] == 0) {
+                    bool mr = true, mc = true;
+                    for (int k = 0; k < N; k++)
+                        if (d[k] > 0 && costs[i][k] < costs[i][j]) { mr = false; break; }
+                    for (int k = 0; k < M; k++)
+                        if (s[k] > 0 && costs[k][j] < costs[i][j]) { mc = false; break; }
+                    int sc = (mr ? 1 : 0) + (mc ? 1 : 0);
+                    if (sc > bs) { bs = sc; bi = i; bj = j; }
+                }
+        if (bi == -1) break;
+        int v = min(s[bi], d[bj]);
+        x[bi][bj] = v; s[bi] -= v; d[bj] -= v;
+    }
+    return x;
+}
+
+// Полноценный метод потенциалов с поиском цикла
+vector<vector<int>> potentials(vector<vector<int>> plan) {
+    while (true) {
+        vector<vector<int>> basis(M, vector<int>(N, 0));
+        int bcnt = 0;
+        for (int i = 0; i < M; i++)
+            for (int j = 0; j < N; j++)
+                if (plan[i][j] > 0) { basis[i][j] = 1; bcnt++; }
+
+        // Добавляем нули для невырожденности
+        for (int i = 0; i < M && bcnt < M + N - 1; i++)
+            for (int j = 0; j < N && bcnt < M + N - 1; j++)
+                if (!basis[i][j]) { basis[i][j] = 1; bcnt++; }
+
+        vector<int> u(M, 99999), v(N, 99999);
+        u[0] = 0;
+        bool ch = true;
+        while (ch) {
+            ch = false;
+            for (int i = 0; i < M; i++)
+                for (int j = 0; j < N; j++)
+                    if (basis[i][j]) {
+                        if (u[i] != 99999 && v[j] == 99999) v[j] = costs[i][j] - u[i], ch = true;
+                        else if (v[j] != 99999 && u[i] == 99999) u[i] = costs[i][j] - v[j], ch = true;
+                    }
+        }
+
+        int pi = -1, pj = -1, md = 0;
+        for (int i = 0; i < M; i++)
+            for (int j = 0; j < N; j++)
+                if (!basis[i][j] && u[i] != 99999 && v[j] != 99999)
+                    if (costs[i][j] - u[i] - v[j] < md)
+                        md = costs[i][j] - u[i] - v[j], pi = i, pj = j;
+
+        if (pi == -1) return plan;
+
+        // Поиск цикла
+        basis[pi][pj] = 1;
+        vector<int> row_cnt(M), col_cnt(N);
+        for (int i = 0; i < M; i++)
+            for (int j = 0; j < N; j++)
+                if (basis[i][j]) row_cnt[i]++, col_cnt[j]++;
+
+        // Вычёркивание строк/столбцов с 1 элементом
+        vector<int> del_row(M), del_col(N);
+        bool dch = true;
+        while (dch) {
+            dch = false;
+            for (int i = 0; i < M; i++)
+                if (!del_row[i] && row_cnt[i] == 1)
+                    del_row[i] = 1, dch = true;
+            for (int j = 0; j < N; j++)
+                if (!del_col[j] && col_cnt[j] == 1)
+                    del_col[j] = 1, dch = true;
+            for (int i = 0; i < M; i++) {
+                row_cnt[i] = 0;
+                if (!del_row[i])
+                    for (int j = 0; j < N; j++)
+                        if (!del_col[j] && basis[i][j]) row_cnt[i]++;
+            }
+            for (int j = 0; j < N; j++) {
+                col_cnt[j] = 0;
+                if (!del_col[j])
+                    for (int i = 0; i < M; i++)
+                        if (!del_row[i] && basis[i][j]) col_cnt[j]++;
+            }
+        }
+
+        // Сбор цикла и пересчёт
+        int theta = 99999;
+        for (int i = 0; i < M; i++)
+            for (int j = 0; j < N; j++)
+                if (!del_row[i] && !del_col[j] && basis[i][j])
+                    if (!(i == pi && j == pj)) theta = min(theta, plan[i][j]);
+
+        if (theta == 99999) theta = 0;
+
+        for (int i = 0; i < M; i++)
+            for (int j = 0; j < N; j++)
+                if (!del_row[i] && !del_col[j] && basis[i][j])
+                    plan[i][j] += (i == pi && j == pj) ? theta : -theta;
+
+        basis[pi][pj] = 0;
+    }
+}
+
+int calcCost(const vector<vector<int>>& x) {
+    int t = 0;
+    for (int i = 0; i < M; i++)
+        for (int j = 0; j < N; j++) if (x[i][j] > 0) t += x[i][j] * costs[i][j];
+    return t;
+}
+
+int main() {
+    SetConsoleCP(1251); SetConsoleOutputCP(1251);
+    cout << "\n  ================================================\n";
+    cout << "  |      ТРАНСПОРТНАЯ ЗАДАЧА                   |\n";
+    cout << "  |  С-З угол, мин. элемент, двойное предп.    |\n";
+    cout << "  |  Оптимизация: метод потенциалов            |\n";
+    cout << "  ================================================\n";
+
+    inputData();
+    makeBalanced();
+
+    auto nw = northwestCorner();
+    auto me = minElement();
+    auto dp = doublePreference();
+
+    printPlan(nw, "МЕТОД СЕВЕРО-ЗАПАДНОГО УГЛА");
+    printPlan(me, "МЕТОД МИНИМАЛЬНОГО ЭЛЕМЕНТА");
+    printPlan(dp, "МЕТОД ДВОЙНОГО ПРЕДПОЧТЕНИЯ");
+
+    int cnw = calcCost(nw), cme = calcCost(me), cdp = calcCost(dp);
+    auto best = me; string bn = "мин. элемента"; int bc = cme;
+    if (cnw < bc) { best = nw; bn = "С-З угла"; bc = cnw; }
+    if (cdp < bc) { best = dp; bn = "двойного предп."; bc = cdp; }
+
+    printTitle("СРАВНЕНИЕ");
+    printf("  С-З угол: %d\n  Мин. элемент: %d\n  Двойное предп.: %d\n", cnw, cme, cdp);
+    printf("  Лучший опорный: %s (%d)\n", bn.c_str(), bc);
+
+    auto opt = potentials(best);
+    int co = calcCost(opt);
+    printPlan(opt, "ОПТИМАЛЬНЫЙ ПЛАН (ПОТЕНЦИАЛЫ)");
+
+    printTitle("ИТОГ");
+    printf("  Опорный план: %d\n  Оптимальный: %d\n", bc, co);
+    if (co < bc) printf("  Улучшение: %d\n", bc - co);
+    else if (co == bc) printf("  План уже оптимален\n");
+
+    printf("\n  Нажмите любую клавишу...");
+    system("pause>nul");
+}
