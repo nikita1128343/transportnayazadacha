@@ -1,0 +1,434 @@
+#include <iostream>
+#include <vector>
+#include <limits>
+#include <algorithm>
+#include <iomanip>
+#include <string>
+#include <functional>
+
+using namespace std;
+
+// ====== ДАННЫЕ ЗАДАЧИ 10.1 ======
+const int M = 4, N = 5;
+
+int supply[M] = { 19, 14, 27, 34 };
+int demand[N] = { 3, 20, 47, 8, 16 };
+
+int costs[M][N] = {
+    {5,  9, 10,  5,  1},
+    {18, 15, 10, 12, 15},
+    {17, 10, 10,  9, 14},
+    {9,  5,  5,  3,  5}
+};
+
+// ====== РАЗДЕЛИТЕЛИ И ОФОРМЛЕНИЕ ======
+void printLine(int width) {
+    cout << "+";
+    for (int i = 0; i < width; i++) cout << "-";
+    cout << "+\n";
+}
+
+void printHeader(const string& title) {
+    cout << "\n";
+    printLine(70);
+    cout << "| " << setw(66) << left << title << " |\n";
+    printLine(70);
+}
+
+// ====== ПЕЧАТЬ ИСХОДНЫХ ДАННЫХ ======
+void printInitialData() {
+    printHeader("ИСХОДНЫЕ ДАННЫЕ ЗАДАЧИ 10.1");
+
+    cout << "\nЗАПАСЫ ПОСТАВЩИКОВ:\n";
+    printLine(50);
+    for (int i = 0; i < M; i++) {
+        cout << "| A" << i + 1 << " = " << setw(3) << supply[i] << "                      |\n";
+    }
+    printLine(50);
+
+    cout << "\nПОТРЕБНОСТИ ПОТРЕБИТЕЛЕЙ:\n";
+    printLine(70);
+    for (int j = 0; j < N; j++) {
+        cout << "| B" << j + 1 << " = " << setw(3) << demand[j] << "                    |\n";
+    }
+    printLine(70);
+
+    cout << "\nМАТРИЦА СТОИМОСТЕЙ:\n";
+    printLine(60);
+    cout << "|      |";
+    for (int j = 0; j < N; j++) cout << "  B" << j + 1 << "  |";
+    cout << "\n";
+    printLine(60);
+    for (int i = 0; i < M; i++) {
+        cout << "| A" << i + 1 << "  |";
+        for (int j = 0; j < N; j++) {
+            cout << " " << setw(3) << costs[i][j] << "  |";
+        }
+        cout << "\n";
+    }
+    printLine(60);
+
+    int sumSupply = 0, sumDemand = 0;
+    for (int i = 0; i < M; i++) sumSupply += supply[i];
+    for (int j = 0; j < N; j++) sumDemand += demand[j];
+    cout << "\nСумма запасов: " << sumSupply << " | Сумма потребностей: " << sumDemand;
+    cout << " | Задача " << (sumSupply == sumDemand ? "СБАЛАНСИРОВАНА" : "НЕ СБАЛАНСИРОВАНА") << "\n";
+}
+
+// ====== ПЕЧАТЬ ПЛАНА ПЕРЕВОЗОК ======
+void printPlan(const vector<vector<int>>& plan, const string& title, int totalCost) {
+    printHeader(title);
+
+    // Заголовок таблицы
+    cout << "|      |";
+    for (int j = 0; j < N; j++) {
+        cout << "  B" << j + 1 << "   |";
+    }
+    cout << " Запас |\n";
+
+    printLine(60);
+
+    // Строки плана
+    for (int i = 0; i < M; i++) {
+        cout << "| A" << i + 1 << "  |";
+        for (int j = 0; j < N; j++) {
+            if (plan[i][j] > 0) {
+                cout << " " << setw(2) << plan[i][j] << "(" << setw(2) << costs[i][j] << ") |";
+            }
+            else {
+                cout << "   0   |";
+            }
+        }
+        cout << "  " << setw(3) << supply[i] << "  |\n";
+        printLine(60);
+    }
+
+    // Потребности
+    cout << "| Потр |";
+    for (int j = 0; j < N; j++) {
+        cout << "  " << setw(2) << demand[j] << "   |";
+    }
+    cout << "       |\n";
+    printLine(60);
+
+    // Стоимость
+    cout << "\n>>> ОБЩАЯ СТОИМОСТЬ: " << totalCost << " <<<\n";
+
+    // Проверка баланса
+    int sumSupply = 0, sumDemand = 0;
+    for (int i = 0; i < M; i++) {
+        int rowSum = 0;
+        for (int j = 0; j < N; j++) rowSum += plan[i][j];
+        sumSupply += rowSum;
+    }
+    for (int j = 0; j < N; j++) {
+        int colSum = 0;
+        for (int i = 0; i < M; i++) colSum += plan[i][j];
+        sumDemand += colSum;
+    }
+    cout << "Проверка: сумма перевозок = " << sumSupply << "\n";
+}
+
+// ====== МЕТОД 1: СЕВЕРО-ЗАПАДНЫЙ УГОЛ ======
+vector<vector<int>> northwestCorner() {
+    vector<int> s(supply, supply + M);
+    vector<int> d(demand, demand + N);
+    vector<vector<int>> plan(M, vector<int>(N, 0));
+
+    int i = 0, j = 0;
+    while (i < M && j < N) {
+        if (s[i] > 0 && d[j] > 0) {
+            int amount = min(s[i], d[j]);
+            plan[i][j] = amount;
+            s[i] -= amount;
+            d[j] -= amount;
+        }
+        if (s[i] == 0) i++;
+        else if (d[j] == 0) j++;
+        else break;
+    }
+    return plan;
+}
+
+// ====== МЕТОД 2: МИНИМАЛЬНЫЙ ЭЛЕМЕНТ ======
+vector<vector<int>> minElement() {
+    vector<int> s(supply, supply + M);
+    vector<int> d(demand, demand + N);
+    vector<vector<int>> plan(M, vector<int>(N, 0));
+
+    while (true) {
+        int minCost = numeric_limits<int>::max();
+        int mi = -1, mj = -1;
+
+        for (int i = 0; i < M; i++)
+            for (int j = 0; j < N; j++)
+                if (s[i] > 0 && d[j] > 0 && costs[i][j] < minCost) {
+                    minCost = costs[i][j];
+                    mi = i; mj = j;
+                }
+
+        if (mi == -1) break;
+
+        int amount = min(s[mi], d[mj]);
+        plan[mi][mj] = amount;
+        s[mi] -= amount;
+        d[mj] -= amount;
+    }
+    return plan;
+}
+
+// ====== МЕТОД 3: ДВОЙНОЕ ПРЕДПОЧТЕНИЕ ======
+vector<vector<int>> doublePreference() {
+    vector<int> s(supply, supply + M);
+    vector<int> d(demand, demand + N);
+    vector<vector<int>> plan(M, vector<int>(N, 0));
+    vector<vector<int>> marks(M, vector<int>(N, 0));
+
+    // Отмечаем минимумы по строкам
+    for (int i = 0; i < M; i++) {
+        int minVal = numeric_limits<int>::max();
+        for (int j = 0; j < N; j++)
+            if (s[i] > 0 && d[j] > 0)
+                minVal = min(minVal, costs[i][j]);
+        for (int j = 0; j < N; j++)
+            if (costs[i][j] == minVal) marks[i][j]++;
+    }
+
+    // Отмечаем минимумы по столбцам
+    for (int j = 0; j < N; j++) {
+        int minVal = numeric_limits<int>::max();
+        for (int i = 0; i < M; i++)
+            if (s[i] > 0 && d[j] > 0)
+                minVal = min(minVal, costs[i][j]);
+        for (int i = 0; i < M; i++)
+            if (costs[i][j] == minVal) marks[i][j]++;
+    }
+
+    // Заполняем клетки с двумя отметками
+    for (int i = 0; i < M; i++)
+        for (int j = 0; j < N; j++)
+            if (marks[i][j] == 2 && s[i] > 0 && d[j] > 0) {
+                int amount = min(s[i], d[j]);
+                plan[i][j] = amount;
+                s[i] -= amount;
+                d[j] -= amount;
+            }
+
+    // С одной отметкой
+    for (int i = 0; i < M; i++)
+        for (int j = 0; j < N; j++)
+            if (marks[i][j] == 1 && s[i] > 0 && d[j] > 0) {
+                int amount = min(s[i], d[j]);
+                plan[i][j] = amount;
+                s[i] -= amount;
+                d[j] -= amount;
+            }
+
+    // Оставшиеся — по минимальному элементу
+    while (true) {
+        int minCost = numeric_limits<int>::max();
+        int mi = -1, mj = -1;
+        for (int i = 0; i < M; i++)
+            for (int j = 0; j < N; j++)
+                if (plan[i][j] == 0 && s[i] > 0 && d[j] > 0 && costs[i][j] < minCost) {
+                    minCost = costs[i][j];
+                    mi = i; mj = j;
+                }
+        if (mi == -1) break;
+        int amount = min(s[mi], d[mj]);
+        plan[mi][mj] = amount;
+        s[mi] -= amount;
+        d[mj] -= amount;
+    }
+
+    return plan;
+}
+
+// ====== МЕТОД 4: ПОТЕНЦИАЛОВ ======
+vector<vector<int>> optimizeByPotentials(vector<vector<int>> plan) {
+    vector<vector<bool>> basis(M, vector<bool>(N, false));
+
+    while (true) {
+        // Определяем базисные клетки
+        for (int i = 0; i < M; i++)
+            for (int j = 0; j < N; j++)
+                basis[i][j] = (plan[i][j] >= 0);
+
+        // Вычисляем потенциалы
+        vector<int> u(M, numeric_limits<int>::max());
+        vector<int> v(N, numeric_limits<int>::max());
+        u[0] = 0;
+
+        bool changed = true;
+        while (changed) {
+            changed = false;
+            for (int i = 0; i < M; i++)
+                for (int j = 0; j < N; j++)
+                    if (basis[i][j]) {
+                        if (u[i] != numeric_limits<int>::max() && v[j] == numeric_limits<int>::max()) {
+                            v[j] = costs[i][j] - u[i];
+                            changed = true;
+                        }
+                        else if (v[j] != numeric_limits<int>::max() && u[i] == numeric_limits<int>::max()) {
+                            u[i] = costs[i][j] - v[j];
+                            changed = true;
+                        }
+                    }
+        }
+
+        // Ищем клетку с отрицательной оценкой
+        int minDelta = 0, pi = -1, pj = -1;
+        for (int i = 0; i < M; i++)
+            for (int j = 0; j < N; j++)
+                if (!basis[i][j] && u[i] != numeric_limits<int>::max() && v[j] != numeric_limits<int>::max()) {
+                    int delta = costs[i][j] - u[i] - v[j];
+                    if (delta < minDelta) {
+                        minDelta = delta;
+                        pi = i; pj = j;
+                    }
+                }
+
+        if (pi == -1) break; // Оптимально
+
+        // Строим цикл пересчёта
+        basis[pi][pj] = true;
+        vector<pair<int, int>> cycle;
+        cycle.push_back({ pi, pj });
+
+        // Рекурсивный поиск цикла
+        function<bool(int, int, int, int)> findCycle = [&](int r, int c, int pr, int pc) {
+            if (r == pi && c == pj && cycle.size() > 1) return true;
+            // Ищем по строке
+            if (pr != r || pc == c) {
+                for (int j = 0; j < N; j++)
+                    if (j != c && basis[r][j]) {
+                        cycle.push_back({ r, j });
+                        if (findCycle(r, j, r, c)) return true;
+                        cycle.pop_back();
+                    }
+            }
+            // Ищем по столбцу
+            if (pc != c || pr == r) {
+                for (int i = 0; i < M; i++)
+                    if (i != r && basis[i][c]) {
+                        cycle.push_back({ i, c });
+                        if (findCycle(i, c, r, c)) return true;
+                        cycle.pop_back();
+                    }
+            }
+            return false;
+            };
+
+        findCycle(pi, pj, -1, -1);
+        basis[pi][pj] = false;
+
+        // Пересчёт по циклу
+        int minVal = numeric_limits<int>::max();
+        for (size_t k = 1; k < cycle.size(); k += 2)
+            minVal = min(minVal, plan[cycle[k].first][cycle[k].second]);
+
+        for (size_t k = 0; k < cycle.size(); k++) {
+            int ci = cycle[k].first, cj = cycle[k].second;
+            plan[ci][cj] += (k % 2 == 0) ? minVal : -minVal;
+        }
+    }
+
+    return plan;
+}
+
+// ====== ВЫЧИСЛЕНИЕ СТОИМОСТИ ======
+int calcCost(const vector<vector<int>>& plan) {
+    int total = 0;
+    for (int i = 0; i < M; i++)
+        for (int j = 0; j < N; j++)
+            if (plan[i][j] > 0)
+                total += plan[i][j] * costs[i][j];
+    return total;
+}
+
+// ====== СРАВНЕНИЕ МЕТОДОВ ======
+void compareMethods(const vector<vector<int>>& nw, const vector<vector<int>>& me,
+    const vector<vector<int>>& dp) {
+    printHeader("СРАВНЕНИЕ ОПОРНЫХ ПЛАНОВ");
+
+    int nwCost = calcCost(nw);
+    int meCost = calcCost(me);
+    int dpCost = calcCost(dp);
+
+    cout << "\n";
+    printLine(60);
+    cout << "| " << setw(40) << left << "МЕТОД" << " | " << setw(10) << "СТОИМОСТЬ" << " |\n";
+    printLine(60);
+    cout << "| " << setw(40) << left << "Северо-западный угол" << " | " << setw(10) << nwCost << " |\n";
+    cout << "| " << setw(40) << left << "Минимальный элемент" << " | " << setw(10) << meCost << " |\n";
+    cout << "| " << setw(40) << left << "Двойное предпочтение" << " | " << setw(10) << dpCost << " |\n";
+    printLine(60);
+
+    string bestMethod = "Северо-западный угол";
+    int bestCost = nwCost;
+    if (meCost < bestCost) { bestCost = meCost; bestMethod = "Минимальный элемент"; }
+    if (dpCost < bestCost) { bestCost = dpCost; bestMethod = "Двойное предпочтение"; }
+
+    cout << "\n>>> ЛУЧШИЙ ОПОРНЫЙ ПЛАН: " << bestMethod;
+    cout << " (стоимость " << bestCost << ") <<<\n";
+}
+
+// ====== ГЛАВНАЯ ФУНКЦИЯ ======
+int main() {
+    setlocale(LC_ALL, "");
+
+    cout << "\n";
+    cout << "*********************************************************************\n";
+    cout << "*                                                                   *\n";
+    cout << "*         РЕШЕНИЕ ТРАНСПОРТНОЙ ЗАДАЧИ 10.1                         *\n";
+    cout << "*         МЕТОДЫ: С-З УГОЛ, МИН.ЭЛЕМЕНТ, ДВОЙНОЕ ПРЕДПОЧТЕНИЕ      *\n";
+    cout << "*         ОПТИМИЗАЦИЯ: МЕТОД ПОТЕНЦИАЛОВ                           *\n";
+    cout << "*                                                                   *\n";
+    cout << "*********************************************************************\n";
+
+    // Вывод исходных данных
+    printInitialData();
+
+    // Решение методами
+    vector<vector<int>> nw = northwestCorner();
+    vector<vector<int>> me = minElement();
+    vector<vector<int>> dp = doublePreference();
+
+    // Вывод опорных планов
+    printPlan(nw, "МЕТОД СЕВЕРО-ЗАПАДНОГО УГЛА", calcCost(nw));
+    printPlan(me, "МЕТОД МИНИМАЛЬНОГО ЭЛЕМЕНТА", calcCost(me));
+    printPlan(dp, "МЕТОД ДВОЙНОГО ПРЕДПОЧТЕНИЯ", calcCost(dp));
+
+    // Сравнение методов
+    compareMethods(nw, me, dp);
+
+    // Выбор лучшего плана для оптимизации
+    int nwCost = calcCost(nw), meCost = calcCost(me), dpCost = calcCost(dp);
+    vector<vector<int>> bestPlan = me;
+    string bestMethodName = "Минимальный элемент";
+    if (nwCost < calcCost(bestPlan)) { bestPlan = nw; bestMethodName = "Северо-западный угол"; }
+    if (dpCost < calcCost(bestPlan)) { bestPlan = dp; bestMethodName = "Двойное предпочтение"; }
+
+    cout << "\n>>> ОПТИМИЗАЦИЯ МЕТОДОМ ПОТЕНЦИАЛОВ (на основе " << bestMethodName << ") <<<\n";
+
+    // Оптимизация методом потенциалов
+    vector<vector<int>> optimal = optimizeByPotentials(bestPlan);
+    printPlan(optimal, "ОПТИМАЛЬНЫЙ ПЛАН (МЕТОД ПОТЕНЦИАЛОВ)", calcCost(optimal));
+
+    // Проверка на оптимальность
+    int initialBest = min({ nwCost, meCost, dpCost });
+    int finalCost = calcCost(optimal);
+
+    cout << "\n";
+    printLine(70);
+    cout << "| " << setw(66) << left << "ИТОГИ РЕШЕНИЯ" << " |\n";
+    printLine(70);
+    cout << "| " << setw(50) << left << "Лучшая стоимость опорного плана:" << setw(15) << initialBest << " |\n";
+    cout << "| " << setw(50) << left << "Стоимость оптимального плана:" << setw(15) << finalCost << " |\n";
+    cout << "| " << setw(50) << left << "Улучшение:" << setw(15) << (initialBest - finalCost) << " |\n";
+    printLine(70);
+
+    cout << "\nПрограмма завершена успешно!\n";
+
+    return 0;
+}
